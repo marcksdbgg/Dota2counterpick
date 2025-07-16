@@ -1,21 +1,23 @@
 """
-Port for consuming match data from external streams.
-This is an input port (driving adapter will implement this).
+Puerto para consumir datos de partidas desde streams externos.
+Este es un puerto de entrada (driving port), un adaptador implementará esta interfaz.
 """
 from abc import ABC, abstractmethod
-from typing import AsyncIterator
-
 
 class ISourceStreamConsumer(ABC):
     """
-    Interface for consuming match data from external streaming sources.
-    This port defines the contract for adapters that listen to external streams.
+    Define el contrato para los adaptadores que escuchan a streams externos.
     """
-    
+
     @abstractmethod
     async def start_consuming(self) -> None:
         """
-        Start consuming the stream indefinitely.
-        This method should run forever, processing incoming data.
+        Inicia el consumo del stream de forma indefinida.
+        El método debe gestionar la conexión, reconexión y procesamiento de mensajes.
         """
+        pass
+
+    @abstractmethod
+    async def stop_consuming(self) -> None:
+        """Detiene el consumo del stream de forma controlada."""
         pass

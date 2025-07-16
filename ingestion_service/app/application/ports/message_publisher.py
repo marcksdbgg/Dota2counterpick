@@ -1,34 +1,32 @@
 """
-Port for publishing messages to message brokers.
-This is an output port (driven adapter will implement this).
+Puerto para publicar mensajes a un broker.
+Este es un puerto de salida (driven port), un adaptador implementará esta interfaz.
 """
 from abc import ABC, abstractmethod
 from app.domain.models import Match
 
-
 class IMessagePublisher(ABC):
     """
-    Interface for publishing Match entities to message queues.
-    This port defines the contract for message publishing adapters.
+    Define el contrato para los adaptadores que publican mensajes.
     """
-    
+
     @abstractmethod
     async def publish(self, topic: str, match: Match) -> None:
         """
-        Publish a Match entity to the specified topic.
+        Publica una entidad Match en el topic especificado.
         
         Args:
-            topic: The topic/queue name to publish to
-            match: The Match entity to publish
+            topic: El nombre del topic/cola.
+            match: La entidad Match a publicar.
         """
         pass
-    
+
     @abstractmethod
     async def start(self) -> None:
-        """Initialize the publisher connection."""
+        """Inicializa el publicador (ej. conexión)."""
         pass
-    
+
     @abstractmethod
     async def stop(self) -> None:
-        """Cleanup publisher resources."""
+        """Libera los recursos del publicador (ej. cierra conexión)."""
         pass

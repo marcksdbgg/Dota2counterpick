@@ -1,99 +1,71 @@
 """
-Core use case for processing match stream data.
-This contains the business logic for ingesting and publishing match data.
+Caso de uso central para procesar datos del stream de partidas.
+Contiene la lógica de negocio para la ingesta y publicación.
 """
-import logging
+import structlog
 from typing import Dict, Any
 
 from app.domain.models import Match
 from app.domain.exceptions import InvalidMatchDataError, MatchValidationError
 from app.application.ports.message_publisher import IMessagePublisher
 
-
-logger = logging.getLogger(__name__)
-
+logger = structlog.get_logger(__name__)
 
 class ProcessMatchStreamUseCase:
     """
-    Use case that orchestrates the core business logic:
-    1. Receive raw data from stream
-    2. Validate and transform to domain model
-    3. Publish to message broker
+    Orquesta la lógica de negocio:
+    1. Recibe datos crudos del stream.
+    2. Valida y transforma al modelo de dominio.
+    3. Publica en el message broker a través de un puerto.
     """
-    
+
     def __init__(self, publisher: IMessagePublisher, topic: str):
         """
-        Initialize use case with injected dependencies.
+        Inicializa el caso de uso con sus dependencias inyectadas.
         
         Args:
-            publisher: Message publisher implementation
-            topic: Topic name to publish matches to
+            publisher: Implementación del puerto de publicación.
+            topic: Nombre del topic donde publicar las partidas.
         """
         self._publisher = publisher
         self._topic = topic
-        
+
     async def execute(self, raw_data: Dict[str, Any]) -> None:
         """
-        Process raw match data from the stream.
+        Procesa los datos crudos de una partida recibida del stream.
         
         Args:
-            raw_data: Raw data received from external stream
-            
-        Raises:
-            InvalidMatchDataError: When data doesn't contain valid match info
-            MatchValidationError: When match fails domain validation
+            raw_data: Diccionario con los datos crudos.
         """
         try:
-            # Extract match_id from raw data
             match_id = self._extract_match_id(raw_data)
-            
-            # Create domain entity
             match = Match(match_id=match_id)
             
-            # Publish to message broker
             await self._publisher.publish(self._topic, match)
             
-            logger.info(f"Successfully processed match {match_id}")
-            
+            logger.info(f"Successfully processed match {match.match_id}")
+
         except (InvalidMatchDataError, MatchValidationError) as e:
-            logger.warning(f"Failed to process match data: {e}")
-            # In this service, we log and continue - don't let individual
-            # bad messages stop the entire stream processing
+            logger.warning("Failed to process match data", reason=str(e), data=e.raw_data if hasattr(e, 'raw_data') else raw_data)
         except Exception as e:
-            logger.error(f"Unexpected error processing match data: {e}")
-            # For unexpected errors, we also continue but log as error
-    
+            logger.error("Unexpected error processing match data", error=e, exc_info=True)
+
     def _extract_match_id(self, raw_data: Dict[str, Any]) -> int:
         """
-        Extract and validate match_id from raw stream data.
+        Extrae y valida el `match_id` de los datos crudos.
         
-        Args:
-            raw_data: Raw data from stream
-            
-        Returns:
-            Valid match ID
-            
         Raises:
-            InvalidMatchDataError: When match_id is missing or invalid
+            InvalidMatchDataError: Si los datos no son válidos.
         """
         if not isinstance(raw_data, dict):
-            raise InvalidMatchDataError(
-                "Raw data must be a dictionary", 
-                raw_data
-            )
+            raise InvalidMatchDataError("Raw data must be a dictionary", raw_data)
         
         match_id = raw_data.get("match_id")
         
         if match_id is None:
-            raise InvalidMatchDataError(
-                "Missing 'match_id' field in raw data", 
-                raw_data
-            )
+            raise InvalidMatchDataError("Missing 'match_id' field", raw_data)
         
         if not isinstance(match_id, int) or match_id <= 0:
-            raise InvalidMatchDataError(
-                f"Invalid match_id: {match_id}. Must be positive integer", 
-                raw_data
-            )
+            raise InvalidMatchDataError(f"Invalid match_id: {match_id}. Must be positive integer.", raw_data)
         
         return match_id

@@ -3,9 +3,8 @@ Structured logging configuration using structlog.
 Provides JSON-formatted logs for observability.
 """
 import logging
-import structlog
-from typing import Any, Dict
 import sys
+import structlog
 
 
 def setup_logging(
@@ -14,52 +13,58 @@ def setup_logging(
     service_name: str = "ingestion-service"
 ) -> None:
     """
-    Configure structured logging for the application.
-    
-    Args:
-        log_level: Logging level (DEBUG, INFO, WARNING, ERROR)
-        log_format: Format type (json or text)
-        service_name: Service name to include in logs
+    Configure structured logging for the entire application.
+    This setup redirects standard library logging to be processed by structlog,
+    ensuring all logs are consistently formatted.
     """
+    log_level_upper = log_level.upper()
     
-    # Configure standard library logging
-    logging.basicConfig(
-        format="%(message)s",
-        stream=sys.stdout,
-        level=getattr(logging, log_level.upper())
-    )
-    
-    # Configure processors based on format
-    processors = [
-        structlog.stdlib.filter_by_level,
+    # Define processors shared by all logs
+    shared_processors = [
+        structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
-        structlog.stdlib.PositionalArgumentsFormatter(),
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
-        structlog.processors.UnicodeDecoder(),
-        # Add service context
-        lambda logger, method_name, event_dict: {
-            **event_dict,
-            "service": service_name
-        }
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.CallsiteParameterAdder(
+            [
+                structlog.processors.CallsiteParameter.FILENAME,
+                structlog.processors.CallsiteParameter.FUNC_NAME,
+                structlog.processors.CallsiteParameter.LINENO,
+            ]
+        ),
     ]
-    
-    if log_format == "json":
-        processors.append(structlog.processors.JSONRenderer())
-    else:
-        processors.append(structlog.dev.ConsoleRenderer())
-    
-    # Configure structlog
+
+    # Configure structlog itself
     structlog.configure(
-        processors=processors,
-        context_class=dict,
+        processors=shared_processors + [
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
         logger_factory=structlog.stdlib.LoggerFactory(),
         wrapper_class=structlog.stdlib.BoundLogger,
         cache_logger_on_first_use=True,
     )
 
+    # Choose the final renderer based on log_format
+    renderer = (
+        structlog.processors.JSONRenderer()
+        if log_format == "json"
+        else structlog.dev.ConsoleRenderer(colors=True)
+    )
 
-def get_logger(name: str) -> structlog.BoundLogger:
-    """Get a structured logger instance."""
-    return structlog.get_logger(name)
+    # Configure the formatter for standard library logs
+    formatter = structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=shared_processors,
+        processor=renderer,
+    )
+
+    # Configure the root logger
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(formatter)
+    
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+    root_logger.addHandler(handler)
+    root_logger.setLevel(log_level_upper)
+
+    # Add service context to all logs
+    structlog.contextvars.bind_contextvars(service=service_name)
