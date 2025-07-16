@@ -1,6 +1,2 @@
-from abc import ABC, abstractmethod
-
-class KafkaProducerPort(ABC):
-    @abstractmethod
-    async def send(self, match_id: int):
-        pass
+# This file is deprecated. Use message_publisher.py instead.
+# Keeping for backward compatibility during migration.

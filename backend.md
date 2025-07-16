@@ -33,59 +33,70 @@ El backend se dividirá en los siguientes servicios independientes, cada uno en 
 
 ```mermaid
 flowchart TD
-    subgraph "Fuentes Externas"
-        DotaAPIs["OpenDota/STRATZ APIs"]
-        KafkaStream["OpenDota Kafka Stream"]
-    end
+  %% ============== FUENTES EXTERNAS =================
+  subgraph ext["Fuentes Externas"]
+    direction TB
+    dotaApis["OpenDota / STRATZ APIs"]
+    kafkaStream["OpenDota Kafka Stream"]
+  end
 
-    subgraph "Data Platform"
-        IngestionService["1. Servicio de Ingesta (Python/AIOHTTP)"]
-        ETLService["2. Servicio ETL (Python/Prefect/Celery)"]
-        ModelService["3. Servicio de Modelos (Python/Scikit-learn/TF)"]
-    end
-    
-    subgraph "Core Backend"
-        APIGateway["4. API Gateway (GraphQL - FastAPI)"]
-        WebSocketService["5. Servicio WebSocket (Python/FastAPI)"]
-        AuthService["6. Servicio de Autenticación (Python/FastAPI)"]
-        UserService["7. Servicio de Datos de Usuario (Python/FastAPI)"]
-    end
+  %% ============== DATA PLATFORM ====================
+  subgraph platform["Data Platform"]
+    direction TB
+    ingestSvc["Servicio de Ingesta\\nPython + AIOHTTP"]
+    etlSvc["Servicio ETL\\nPrefect / Celery"]
+    modelSvc["Servicio de Modelos\\nScikit-learn / TensorFlow"]
+  end
 
-    subgraph "Almacenamiento"
-        Kafka["Message Broker (Kafka)"]
-        ClickHouse["Data Warehouse (ClickHouse)"]
-        Postgres["BD de Usuario (PostgreSQL)"]
-        Redis["Caché (Redis)"]
-    end
+  %% ============== ALMACENAMIENTO ===================
+  subgraph storage["Almacenamiento"]
+    direction TB
+    kafka["Message Broker\\nApache Kafka"]
+    clickhouse["Data Warehouse\\nClickHouse"]
+    postgres["Base de Datos de Usuario\\nPostgreSQL"]
+    redis["Caché\\nRedis"]
+  end
 
-    subgraph "Cliente/Frontend"
-        Browser["Navegador/Overlay"]
-    end
+  %% ============== CORE BACKEND =====================
+  subgraph backend["Core Backend"]
+    direction TB
+    apiGw["API Gateway\\nFastAPI + GraphQL"]
+    wsSvc["Servicio WebSocket\\nFastAPI"]
+    authSvc["Servicio de Autenticación\\nFastAPI"]
+    userSvc["Servicio de Datos de Usuario\\nFastAPI"]
+  end
 
-    %% Flujos de Datos principales
-    KafkaStream --> IngestionService
-    DotaAPIs --> IngestionService
-    IngestionService --> Kafka
-    Kafka -->|"topic: new_matches"| ETLService
-    ETLService --> DotaAPIs
-    ETLService --> ClickHouse
-    
-    %% Flujos de Modelos
-    ModelService --> ClickHouse
-    ModelService --> Redis
+  %% ============== CLIENTE / FRONTEND ===============
+  subgraph client["Cliente / Frontend"]
+    direction TB
+    browser["Navegador / Overlay"]
+  end
 
-    %% Flujos de API y almacenamiento
-    APIGateway --> Redis
-    APIGateway --> UserService
-    APIGateway --> AuthService
-    UserService --> Postgres
-    AuthService --> Postgres
-    WebSocketService --> AuthService
+  %% ----------- FLUJOS EXTERNOS ---------------------
+  kafkaStream --> ingestSvc
+  dotaApis    --> ingestSvc
 
-    %% Exposición externa
-    Browser --> APIGateway
-    Browser --> WebSocketService
-    Browser --> AuthService
+  %% ----------- INGESTA A KAFKA ---------------------
+  ingestSvc   --> kafka
+  kafka       -->|"topic: new_matches"| etlSvc
+
+  %% ----------- ETL & MODELOS -----------------------
+  etlSvc      --> clickhouse
+  modelSvc    --> clickhouse
+  modelSvc    --> redis
+
+  %% ----------- BACKEND -----------------------------
+  apiGw       --> redis
+  apiGw       --> userSvc
+  apiGw       --> authSvc
+  userSvc     --> postgres
+  authSvc     --> postgres
+  wsSvc       --> authSvc
+
+  %% ----------- CLIENTE -----------------------------
+  browser     --> apiGw
+  browser     --> wsSvc
+  browser     --> authSvc
 ```
 
 ---

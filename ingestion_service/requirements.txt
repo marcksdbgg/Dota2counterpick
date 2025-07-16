@@ -3,3 +3,5 @@ uvicorn[standard]
 aiohttp
 aiokafka
 pydantic
+pydantic-settings
+structlog
